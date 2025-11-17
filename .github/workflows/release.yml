@@ -59,9 +59,10 @@ jobs:
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
           VERSION="${{ inputs.version }}"
+          MODULE_ID=$(jq -r '.id' module.json)
 
           MANIFEST_URL="https://github.com/${REPO}/releases/latest/download/module.json"
-          DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/chat-pruner.zip"
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${MODULE_ID}.zip"
 
           cp module.json module.json.bak
 
@@ -93,11 +94,18 @@ jobs:
             git push origin HEAD:main
           fi
 
-      - name: Build ZIP (chat-pruner.zip)
+      - name: Get module ID for ZIP filename
+        id: get_module_id
+        run: |
+          MODULE_ID=$(jq -r '.id' module.json)
+          echo "zip_name=${MODULE_ID}.zip" >> $GITHUB_OUTPUT
+
+      - name: Build ZIP
         shell: bash
         run: |
           set -euo pipefail
-          ZIPNAME="chat-pruner.zip"
+          MODULE_ID=$(jq -r '.id' module.json)
+          ZIPNAME="${MODULE_ID}.zip"
           rm -f "$ZIPNAME"
           # Create a clean ZIP with module files at the root.
           zip -r "$ZIPNAME" . \
@@ -112,7 +120,8 @@ jobs:
 
       - name: Verify release assets exist
         run: |
-          test -f chat-pruner.zip || (echo "chat-pruner.zip missing"; exit 1)
+          MODULE_ID=$(jq -r '.id' module.json)
+          test -f "${MODULE_ID}.zip" || (echo "${MODULE_ID}.zip missing"; exit 1)
           test -f module.json || (echo "module.json missing"; exit 1)
 
       - name: Create/Update GitHub Release & Upload Assets
@@ -125,7 +134,7 @@ jobs:
           make_latest: ${{ inputs.make_latest }}
           generate_release_notes: true
           files: |
-            chat-pruner.zip
+            ${{ steps.get_module_id.outputs.zip_name }}
             module.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -51,6 +51,11 @@ A module that adds comprehensive find and replace functionality to all ProseMirr
 - Foundry VTT v13 does not provide an official API hook for ProseMirror plugin injection
 - This module uses workarounds that may need updates if Foundry's ProseMirror implementation changes
 - Performance with extremely large documents (10,000+ words) may vary
+- Some known issues:
+   - This module can be glitchy, I'll continue to work out the bugs now that the module is fully functional.
+   - After typing in the Find form field press enter to commit the search, trying to click any button without first pressing enter will close the find/replace UI.
+   - Sometimes you have to press the find/replace button a couple times before the UI pops up (actor biography for isntance).
+   - A lot of this is due to how stubburn the ProseMirror UI is being handled by Foundry and my module's changes required some brute force.
 
 ## License
 

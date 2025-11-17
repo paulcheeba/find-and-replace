@@ -2,6 +2,9 @@
 
 A module that adds comprehensive find and replace functionality to all ProseMirror editors in Foundry VTT v13+.
 
+<img width="597" height="141" alt="image" src="https://github.com/user-attachments/assets/b69a3f4c-1d42-4ccf-98a6-39233ff4fe37" />
+
+
 ## Features
 
 - **Find & Replace UI**: Adds a button to the ProseMirror toolbar that expands to reveal find and replace controls

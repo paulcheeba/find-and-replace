@@ -13,58 +13,93 @@
 import { FindReplaceLogic } from './find-replace-logic.js';
 
 /**
- * Class that manages the find and replace UI
+ * ui-controller.js
+ * Version: 13.0.1.0
+ * Last Updated: 2025-11-16
+ * Changes: Added comprehensive code comments for better maintainability
+ * 
+ * UIController Class
+ * Manages the find and replace UI in the ProseMirror editor toolbar.
+ * Handles button creation, UI expansion/collapse, and user interactions.
  */
-export class UIController {
+
+/* ========================================
+ * UICONTROLLER CLASS
+ * ======================================== */
+
+class UIController {
   
+  /**
+   * Constructor
+   * @param {EditorView} editorView - ProseMirror EditorView (or mock)
+   * @param {HTMLElement} toolbar - The menu.editor-menu toolbar element
+   */
   constructor(editorView, toolbar) {
-    this.view = editorView;
-    this.logic = new FindReplaceLogic(editorView);
-    this.isExpanded = false;
-    this.toolbarElement = toolbar;
-    this.expandedUI = null;
-    this.button = null;
+    this.view = editorView;                    // EditorView instance (real or mock)
+    this.logic = new FindReplaceLogic(editorView); // Core find/replace logic
+    this.isExpanded = false;                   // Is the expanded UI showing?
+    this.toolbarElement = toolbar;             // Toolbar element to inject button into
+    this.expandedUI = null;                    // Reference to expanded UI container
+    this.button = null;                        // Reference to main toolbar button
   }
+  
+  /* ========================================
+   * BUTTON INJECTION
+   * ======================================== */
   
   /**
    * Inject the find and replace button into the editor toolbar
+   * 
+   * Creates a button with Font Awesome search icon and positions it
+   * near the Source HTML button in the toolbar.
+   * 
+   * Called by:
+   * - Initial setup (main.js creates new controller)
+   * - Re-injection after element replacement (existing controller reused)
    */
   injectButton() {
     console.log('UIController | Injecting find and replace button');
     
-    // Create the button
+    // === CREATE BUTTON ELEMENT ===
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'find-replace-button';
     button.title = game.i18n.localize('find-and-replace.button.tooltip') || 'Find and Replace';
     button.setAttribute('aria-label', 'Find and Replace');
     
-    // Add Font Awesome icon
+    // === ADD FONT AWESOME ICON ===
     const icon = document.createElement('i');
-    icon.className = 'fas fa-search';
+    icon.className = 'fas fa-search'; // Magnifying glass icon
     button.appendChild(icon);
     
-    // Attach click handler
+    // === ATTACH CLICK HANDLER ===
     button.addEventListener('click', (e) => {
       e.preventDefault();
-      this.toggleExpanded();
+      this.toggleExpanded(); // Show/hide expanded UI
     });
     
-    // Find the Source HTML button or similar to position next to it
-    // Common patterns in Foundry: button with class containing 'source', 'code', 'html'
-    const sourceButton = this.toolbarElement.querySelector('button[data-action*="source"], button[title*="Source"], .editor-source, [class*="source"]');
+    // === POSITION BUTTON IN TOOLBAR ===
+    // Try to find Source HTML button to position next to it
+    const sourceButton = this.toolbarElement.querySelector(
+      'button[data-action*="source"], button[title*="Source"], .editor-source, [class*="source"]'
+    );
     
     if (sourceButton) {
-      // Insert after the source button
+      // Insert after the source button for consistent placement
       sourceButton.parentNode.insertBefore(button, sourceButton.nextSibling);
     } else {
-      // Just append to the end of the toolbar
+      // Fallback: append to end of toolbar
       this.toolbarElement.appendChild(button);
     }
     
+    // Store reference for later use (state restoration, removal, etc.)
     this.button = button;
     console.log('UIController | Button injected successfully');
   }
+  
+  /* ========================================
+   * UI EXPANSION/COLLAPSE
+   * ======================================== */
   
   /**
    * Toggle the expanded find and replace UI
@@ -79,6 +114,10 @@ export class UIController {
   
   /**
    * Expand the toolbar to show find and replace controls
+   * 
+   * Creates a two-row interface:
+   * Row 1: Find input + Find button + Next/Previous buttons + Close button + Counter
+   * Row 2: Replace input + Replace button + Replace All button + Match Case checkbox
    */
   expand() {
     console.log('UIController | Expanding find and replace UI');

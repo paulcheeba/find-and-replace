@@ -1,16 +1,34 @@
 /**
- * Find and Replace Module Styles
+ * find-replace.css
+ * Version: 13.0.1.0
+ * Last Updated: 2025-11-16
+ * Changes: Added comprehensive code comments for better maintainability
  * 
- * Styles for the find and replace UI that match Foundry VTT's theme
+ * Find and Replace Module Styles
+ * Complete styling for button and expanded UI that matches Foundry VTT's theme.
+ * 
+ * Uses Foundry's CSS variables for consistent theming:
+ * - Colors: var(--color-cool-*) for blues, var(--color-warm-*) for oranges
+ * - Borders: var(--color-border-*)
+ * - Text: var(--color-text-*)
  */
 
-/* Prevent menu height jitter when button is re-injected */
+/* ========================================
+ * TOOLBAR FIXES
+ * ======================================== */
+
+/* Prevent menu height jitter when button is re-injected
+ * Fixed height ensures toolbar doesn't resize when button disappears/reappears
+ * during Foundry's element replacement */
 prose-mirror menu.editor-menu,
 prose-mirror menu {
   height: 44px;
 }
 
-/* Find and Replace Button */
+/* ========================================
+ * FIND & REPLACE BUTTON
+ * ======================================== */
+
 .find-replace-button {
   display: inline-flex;
   align-items: center;

@@ -2,7 +2,7 @@
   "id": "find-and-replace",
   "title": "Find and Replace",
   "description": "Adds find and replace functionality to ProseMirror editors in Foundry VTT",
-  "version": "13.0.0.4",
+  "version": "13.0.1.0",
   "authors": [
     {
       "name": "paulcheeba",

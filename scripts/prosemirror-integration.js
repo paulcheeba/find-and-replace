@@ -1,19 +1,29 @@
 /**
+ * prosemirror-integration.js
+ * Version: 13.0.1.0
+ * Last Updated: 2025-11-16
+ * Changes: Added comprehensive code comments for better maintainability
+ * 
  * ProseMirror Integration Module
+ * Provides helper functions for working with ProseMirror editors.
  * 
- * Handles the integration with ProseMirror editors:
- * - Editor state management
- * - Transaction handling
- * - Editor detection across different Foundry contexts
- * 
- * Note: This module provides helper functions for working with ProseMirror.
- * The actual editor view instances are accessed directly from the DOM in main.js.
+ * NOTE: This file is currently minimal because we use a mock EditorView
+ * approach in main.js for Foundry v13's custom <prose-mirror> elements.
+ * These utilities work with both real and mock EditorViews.
  * 
  * @module prosemirror-integration
  */
 
+/* ========================================
+ * PROSEMIRROR INTEGRATION HELPERS
+ * ======================================== */
+
 /**
  * Class responsible for integrating with ProseMirror editors
+ * 
+ * Provides static utility methods that work with EditorView instances.
+ * All methods are safe to use with mock EditorView (they just delegate
+ * to the view's properties/methods which we implement in the mock).
  */
 export class ProseMirrorIntegration {
   

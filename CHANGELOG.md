@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to Semantic Versioning adapted for Foundry VTT modules:
 `v{foundry version}.{major version}.{subversion}.{test subversion}`
 
+## [13.0.1.1] - 2025-11-16
+
+### Changed
+- Updated GitHub Actions workflows for automated releases
+- Configured pre-release workflow for testing versions
+- Improved release automation process
+
+## [13.0.1.0] - 2025-11-16
+
+### Added
+- Comprehensive code comments throughout all JavaScript files
+- Section headers for better code navigation
+- Detailed inline documentation explaining technical decisions
+- File versioning headers with change tracking
+
+### Changed
+- Updated file header format to include version, date, and changes
+- Improved code maintainability with extensive commenting
+
+### Documentation
+- Added section comments to main.js (Global State, Foundry Hooks, Mutation Observer, etc.)
+- Added section comments to ui-controller.js (Button Injection, UI Expansion/Collapse)
+- Added section comments to find-replace-logic.js (Search, Navigation, Replace, Highlighting)
+- Added section comments to CSS file (Toolbar Fixes, Button Styling)
+
+## [13.0.0.5] - 2025-11-16
+
+### Fixed
+- Fixed menu height jitter during button re-injection (set height to 44px)
+- Fixed `selection.constructor.near` error in clear() method
+- Replaced broken ProseMirror selection with native `window.getSelection().removeAllRanges()`
+
+### Changed
+- Changed menu CSS from `min-height: 36px` to `height: 44px` for stability
+- Updated clear() method to use native Selection API
+
+### Technical
+- Improved button persistence mechanism with 150ms debounce delay
+- Removed processingElements Set approach (was blocking initial injection)
+- Simplified mutation handler logic
+
 ## [13.0.0.0] - 2025-11-15
 
 ### Added

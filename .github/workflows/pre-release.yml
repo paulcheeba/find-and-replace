@@ -1,4 +1,4 @@
-name: Publish Pre-Release (Find and Replace)
+name: Publish Pre-Release
 
 on:
   workflow_dispatch:
@@ -62,12 +62,6 @@ jobs:
 
       # removed committing back to main; prerelease artifacts only
 
-      - name: Get module ID for ZIP filename
-        id: get_module_id
-        run: |
-          MODULE_ID=$(jq -r '.id' module.json)
-          echo "zip_name=${MODULE_ID}.zip" >> $GITHUB_OUTPUT
-
       - name: Build ZIP
         shell: bash
         run: |
@@ -97,18 +91,73 @@ jobs:
           REPO="${GITHUB_REPOSITORY}"
           TAG="v${{ inputs.version }}"
           MODULE_ID=$(jq -r '.id' module.json)
+          MODULE_TITLE=$(jq -r '.title' module.json)
           MANIFEST_URL="https://github.com/${REPO}/releases/download/${TAG}/module.json"
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${MODULE_ID}.zip"
+          RELEASE_URL="https://github.com/${REPO}/releases/tag/${TAG}"
           {
             echo "Automated pre-release for testing."
             echo
-            echo "Version: \`${TAG}\`"
+            echo "**Version:** \`${TAG}\`"
             echo
-            echo "### Pre-release manifest URL"
+            echo "### 📦 Quick Links"
             echo
-            echo '```txt'
+            echo "- **Release Page:** [${TAG}](${RELEASE_URL})"
+            echo "- **Download Module:** [${MODULE_ID}.zip](${DOWNLOAD_URL})"
+            echo
+            echo "### 🔗 Pre-release Manifest URL"
+            echo
+            echo "Copy this URL to install the pre-release version in Foundry VTT:"
+            echo
+            echo '```'
             echo "${MANIFEST_URL}"
             echo '```'
+            echo
+            echo "### 📋 Installation Instructions"
+            echo
+            echo "1. In Foundry VTT, go to **Add-on Modules**"
+            echo "2. Click **Install Module**"
+            echo "3. Paste the manifest URL above into the **Manifest URL** field"
+            echo "4. Click **Install**"
           } > release_body.md
+
+      - name: Create workflow summary
+        run: |
+          REPO="${GITHUB_REPOSITORY}"
+          TAG="v${{ inputs.version }}"
+          MODULE_ID=$(jq -r '.id' module.json)
+          MODULE_TITLE=$(jq -r '.title' module.json)
+          MANIFEST_URL="https://github.com/${REPO}/releases/download/${TAG}/module.json"
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${MODULE_ID}.zip"
+          RELEASE_URL="https://github.com/${REPO}/releases/tag/${TAG}"
+          {
+            echo "# 🚀 ${MODULE_TITLE} Pre-Release ${TAG} Published Successfully!"
+            echo
+            echo "## 📦 Release Assets"
+            echo
+            echo "| Asset | Link |"
+            echo "|-------|------|"
+            echo "| 📄 Release Page | [${TAG}](${RELEASE_URL}) |"
+            echo "| 📁 Module ZIP | [${MODULE_ID}.zip](${DOWNLOAD_URL}) |"
+            echo "| 📋 Manifest JSON | [module.json](${MANIFEST_URL}) |"
+            echo
+            echo "## 🔗 Foundry VTT Installation"
+            echo
+            echo "**Manifest URL for Foundry VTT:**"
+            echo
+            echo '```'
+            echo "${MANIFEST_URL}"
+            echo '```'
+            echo
+            echo "> Copy the URL above and paste it into the **Manifest URL** field when installing the module in Foundry VTT."
+            echo
+            echo "## ✅ Build Details"
+            echo
+            echo "- **Version:** \`${TAG}\`"
+            echo "- **Commit:** \`${GITHUB_SHA:0:7}\`"
+            echo "- **Branch:** \`${GITHUB_REF_NAME}\`"
+            echo "- **Workflow:** Pre-Release"
+          } >> $GITHUB_STEP_SUMMARY
 
       - name: Create/Update GitHub Pre-Release & Upload Assets
         uses: softprops/action-gh-release@v2
@@ -121,7 +170,7 @@ jobs:
           generate_release_notes: false
           body_path: release_body.md
           files: |
-            ${{ steps.get_module_id.outputs.zip_name }}
+            *.zip
             module.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

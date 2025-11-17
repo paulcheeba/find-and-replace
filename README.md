@@ -18,7 +18,7 @@ A module that adds comprehensive find and replace functionality to all ProseMirr
 
 ### Manual Installation
 
-1. Download the latest release from the [GitHub repository](#) (link to be added after initial testing)
+1. Download the latest release from the [GitHub repository]([#](https://github.com/paulcheeba/find-and-replace)) (link to be added after initial testing)
 2. Extract the zip file to your Foundry VTT `Data/modules` folder
 3. Restart Foundry VTT
 4. Enable the module in your world's module settings

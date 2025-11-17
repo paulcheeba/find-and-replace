@@ -48,7 +48,6 @@ A module that adds comprehensive find and replace functionality to all ProseMirr
 
 ## Known Limitations
 
-- Foundry VTT v13 does not provide an official API hook for ProseMirror plugin injection
 - This module uses workarounds that may need updates if Foundry's ProseMirror implementation changes
 - Performance with extremely large documents (10,000+ words) may vary
 - Some known issues:

@@ -1,0 +1,174 @@
+/**
+ * Find and Replace Module Styles
+ * 
+ * Styles for the find and replace UI that match Foundry VTT's theme
+ */
+
+/* Prevent menu height jitter when button is re-injected */
+prose-mirror menu.editor-menu,
+prose-mirror menu {
+  height: 44px;
+}
+
+/* Find and Replace Button */
+.find-replace-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-cool-2, #2d4059);
+  border: 1px solid var(--color-border-dark, #000);
+  border-radius: 3px;
+  color: var(--color-text-light-primary, #f0f0e0);
+  cursor: pointer;
+  font-size: 14px;
+  height: 28px;
+  margin: 0 2px;
+  padding: 0 8px;
+  transition: none; /* Remove transition to prevent flash during re-injection */
+}
+
+.find-replace-button:hover {
+  background: var(--color-cool-3, #3d5a80);
+  box-shadow: 0 0 6px var(--color-shadow-primary, rgba(255, 0, 0, 0.25));
+}
+
+.find-replace-button.active {
+  background: var(--color-cool-4, #4d6a90);
+  box-shadow: 0 0 8px inset var(--color-shadow-primary, rgba(0, 0, 0, 0.5));
+}
+
+/* Expanded UI Container */
+.find-replace-expanded {
+  background: var(--color-cool-1, #1d2e3f);
+  border: 1px solid var(--color-border-dark, #000);
+  border-top: none;
+  padding: 10px;
+  margin-bottom: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Find Row */
+.find-replace-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+/* Replace Row */
+.find-replace-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Input Fields */
+.find-replace-input {
+  flex: 1;
+  background: var(--color-cool-2, #2d4059);
+  border: 1px solid var(--color-border-dark, #000);
+  border-radius: 3px;
+  color: var(--color-text-light-primary, #f0f0e0);
+  font-family: var(--font-primary, "Signika", sans-serif);
+  font-size: 13px;
+  height: 28px;
+  padding: 0 8px;
+}
+
+.find-replace-input:focus {
+  outline: none;
+  border-color: var(--color-border-highlight, #ff6400);
+  box-shadow: 0 0 5px var(--color-shadow-highlight, rgba(255, 100, 0, 0.5));
+}
+
+.find-replace-input::placeholder {
+  color: var(--color-text-dark-inactive, #7a7971);
+}
+
+/* Buttons */
+.find-replace-nav-button,
+.find-replace-action-button,
+.find-replace-close-button {
+  background: var(--color-cool-2, #2d4059);
+  border: 1px solid var(--color-border-dark, #000);
+  border-radius: 3px;
+  color: var(--color-text-light-primary, #f0f0e0);
+  cursor: pointer;
+  font-family: var(--font-primary, "Signika", sans-serif);
+  font-size: 12px;
+  height: 28px;
+  padding: 0 10px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.find-replace-nav-button {
+  width: 28px;
+  padding: 0;
+}
+
+.find-replace-nav-button:hover,
+.find-replace-action-button:hover,
+.find-replace-close-button:hover {
+  background: var(--color-cool-3, #3d5a80);
+  box-shadow: 0 0 6px var(--color-shadow-primary, rgba(255, 0, 0, 0.25));
+}
+
+.find-replace-nav-button:active,
+.find-replace-action-button:active,
+.find-replace-close-button:active {
+  background: var(--color-cool-4, #4d6a90);
+}
+
+/* Match Case Checkbox */
+.find-replace-match-case {
+  color: var(--color-text-light-primary, #f0f0e0);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.find-replace-match-case input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0 4px 0 0;
+}
+
+/* Match Counter */
+.find-replace-counter {
+  color: var(--color-text-light-secondary, #b5b3a4);
+  font-size: 12px;
+  white-space: nowrap;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Highlighted Matches in Editor */
+/* Note: These would be applied via ProseMirror decorations */
+.find-replace-match {
+  background-color: rgba(255, 255, 0, 0.3);
+  border-bottom: 2px solid rgba(255, 200, 0, 0.6);
+}
+
+.find-replace-match.active {
+  background-color: rgba(255, 150, 0, 0.4);
+  border-bottom: 2px solid rgba(255, 100, 0, 0.8);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .find-replace-expanded {
+    padding: 8px;
+  }
+  
+  .find-replace-find-row,
+  .find-replace-replace-row {
+    flex-wrap: wrap;
+  }
+  
+  .find-replace-input {
+    min-width: 150px;
+  }
+}

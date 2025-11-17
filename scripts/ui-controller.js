@@ -27,7 +27,7 @@ import { FindReplaceLogic } from './find-replace-logic.js';
  * UICONTROLLER CLASS
  * ======================================== */
 
-class UIController {
+export class UIController {
   
   /**
    * Constructor

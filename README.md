@@ -59,7 +59,7 @@ https://github.com/paulcheeba/find-and-replace/releases/latest/download/module.j
    - This module can be glitchy, I'll continue to work out the bugs now that the module is fully functional.
    - After typing in the Find form field press enter to commit the search, trying to click any button without first pressing enter will close the find/replace UI.
    - Sometimes you have to press the find/replace button a couple times before the UI pops up (actor biography for isntance).
-   - A lot of this is due to how stubburn the ProseMirror UI is being handled by Foundry and my module's changes required some brute force.
+   - A lot of this is due to how stubburn the ProseMirror UI is being handled by Foundry and this module's changes required some brute force.
 
 ## License
 

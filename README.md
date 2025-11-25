@@ -56,10 +56,10 @@ https://github.com/paulcheeba/find-and-replace/releases/latest/download/module.j
 - This module uses workarounds that may need updates if Foundry's ProseMirror implementation changes
 - Performance with extremely large documents (10,000+ words) may vary
 - Some known issues:
-   - This module can be glitchy, I'll continue to work out the bugs now that the module is fully functional.
-   - After typing in the Find form field press enter to commit the search, trying to click any button without first pressing enter will close the find/replace UI.
-   - Sometimes you have to press the find/replace button a couple times before the UI pops up (actor biography for isntance).
-   - A lot of this is due to how stubburn the ProseMirror UI is being handled by Foundry and this module's changes required some brute force.
+   - This module can be visually glitchy, I'll continue to work out the visual bugs now that the module is fully functional.
+   - After typing in the Find form field **press enter** to commit the search, trying to click any button without first pressing enter will close the find/replace UI.
+   - If you close the editor without first closing the find/replace panel, the find /replace button incorrectly assumes the panel is still open the next time you open the editor and you may need to press the find/replace button a couple times before the panel pops up. Once to "close" and once more to open the panel.
+   - A lot of this is due to how stubburnly the ProseMirror UI is being handled by Foundry and this module's changes required some brute force.
 
 ## License
 

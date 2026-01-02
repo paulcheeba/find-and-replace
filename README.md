@@ -1,3 +1,8 @@
+[![Foundry VTT Version](https://img.shields.io/badge/Foundry%20VTT-v13+-blue)](https://foundryvtt.com/)
+[![Latest Release](https://img.shields.io/github/v/release/paulcheeba/find-and-replace)](https://github.com/paulcheeba/find-and-replace/releases/latest)
+[![Downloads (All Time)](https://img.shields.io/github/downloads/paulcheeba/find-and-replace/total)](https://github.com/paulcheeba/find-and-replace/releases)
+[![Downloads (Latest)](https://img.shields.io/github/downloads/paulcheeba/find-and-replace/latest/total)](https://github.com/paulcheeba/find-and-replace/releases/latest)
+
 # Find and Replace for Foundry VTT
 
 A module that adds comprehensive find and replace functionality to all ProseMirror editors in Foundry VTT v13+.
@@ -22,9 +27,9 @@ A module that adds comprehensive find and replace functionality to all ProseMirr
    ```
    https://github.com/paulcheeba/find-and-replace/releases/latest/download/find-and-replace.zip
    ```
-3. Extract the zip file to your Foundry VTT `Data/modules` folder
-4. Restart Foundry VTT
-5. Enable the module in your world's module settings
+2. Extract the zip file to your Foundry VTT `Data/modules` folder
+3. Restart Foundry VTT
+4. Enable the module in your world's module settings
 
 ### Manifest URL
 

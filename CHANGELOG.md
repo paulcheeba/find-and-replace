@@ -1,8 +1,3 @@
-[![Foundry VTT Version](https://img.shields.io/badge/Foundry%20VTT-v13+-blue)](https://foundryvtt.com/)
-[![Latest Release](https://img.shields.io/github/v/release/paulcheeba/find-and-replace)](https://github.com/paulcheeba/find-and-replace/releases/latest)
-[![Downloads (All Time)](https://img.shields.io/github/downloads/paulcheeba/find-and-replace/total)](https://github.com/paulcheeba/find-and-replace/releases)
-[![Downloads (Latest)](https://img.shields.io/github/downloads/paulcheeba/find-and-replace/latest/total)](https://github.com/paulcheeba/find-and-replace/releases/latest)
-
 # Changelog
 
 All notable changes to the Find and Replace module will be documented in this file.
@@ -10,6 +5,15 @@ All notable changes to the Find and Replace module will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to Semantic Versioning adapted for Foundry VTT modules:
 `v{foundry version}.{major version}.{subversion}.{test subversion}`
+
+## [13.1.0.0] - 2026-01-02
+
+### Fixed
+- ProseMirror toolbar button stability (no more bouncing/disappearing)
+- Expanded Find/Replace UI stability and interaction glitches
+
+### Changed
+- Updated README installation details and links
 
 ## [13.0.1.1] - 2025-11-16
 

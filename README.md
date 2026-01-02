@@ -7,7 +7,7 @@
 
 A module that adds comprehensive find and replace functionality to all ProseMirror editors in Foundry VTT v13+.
 
-<img width="597" height="141" alt="image" src="https://github.com/user-attachments/assets/b69a3f4c-1d42-4ccf-98a6-39233ff4fe37" />
+<img width="598" height="137" alt="image" src="https://github.com/user-attachments/assets/2b0acca1-9822-44ec-b9d9-c68dcc83967f" />
 
 
 ## Features
@@ -23,7 +23,10 @@ A module that adds comprehensive find and replace functionality to all ProseMirr
 
 ### Manual Installation
 
-1. Download the latest release https://github.com/paulcheeba/find-and-replace/releases/latest/download/find-and-replace.zip
+1. Download the latest release:
+   ```
+   https://github.com/paulcheeba/find-and-replace/releases/latest/download/find-and-replace.zip
+   ```
 2. Extract the zip file to your Foundry VTT `Data/modules` folder
 3. Restart Foundry VTT
 4. Enable the module in your world's module settings
@@ -50,16 +53,6 @@ https://github.com/paulcheeba/find-and-replace/releases/latest/download/module.j
 
 - **Foundry VTT Version**: v13 and above
 - **System Compatibility**: Universal (works with all game systems)
-
-## Known Limitations
-
-- This module uses workarounds that may need updates if Foundry's ProseMirror implementation changes
-- Performance with extremely large documents (10,000+ words) may vary
-- Some known issues:
-   - This module can be visually glitchy, I'll continue to work out the visual bugs now that the module is fully functional.
-   - After typing in the Find form field **press enter** to commit the search, trying to click any button without first pressing enter will close the find/replace UI.
-   - If you close the editor without first closing the find/replace panel, the find /replace button incorrectly assumes the panel is still open the next time you open the editor and you may need to press the find/replace button a couple times before the panel pops up. Once to "close" and once more to open the panel.
-   - A lot of this is due to how stubburnly the ProseMirror UI is being handled by Foundry and this module's changes required some brute force.
 
 ## License
 

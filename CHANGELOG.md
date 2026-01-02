@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to Semantic Versioning adapted for Foundry VTT modules:
 `v{foundry version}.{major version}.{subversion}.{test subversion}`
 
+## [13.1.0.0] - 2026-01-02
+
+### Fixed
+- ProseMirror toolbar button stability (no more bouncing/disappearing)
+- Expanded Find/Replace UI stability and interaction glitches
+
+### Changed
+- Updated README installation details and links
+
 ## [13.0.1.1] - 2025-11-16
 
 ### Changed

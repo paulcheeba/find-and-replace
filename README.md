@@ -65,3 +65,10 @@ This module is licensed under the [MIT License](LICENSE).
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+### Patreon:
+If you would like to help support OverEngineeredVTT or would like to join my patreon for free updates, visit us at:
+- OverEngineeredVTT - https://www.patreon.com/cw/u45257624
+
+### Discord:
+- OverEngineeredVTT - Find and Replace - https://discord.com/channels/1038881475732451368/1454747618725859450

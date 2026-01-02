@@ -12,7 +12,7 @@
   "compatibility": {
     "minimum": "13",
     "verified": "13",
-	"maximum": "13.999"
+    "maximum": "13.999"
   },
   "esmodules": [
     "scripts/main.js"

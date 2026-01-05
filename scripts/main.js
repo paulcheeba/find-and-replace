@@ -1,19 +1,21 @@
 /**
  * main.js
- * Version: 13.0.1.0
- * Last Updated: 2025-11-16
- * Changes: Added comprehensive code comments for better maintainability
+ * Version: 13.1.0.0
+ * Last Updated: 2025-12-30
+ * Changes: MAJOR REFACTOR - Migrated from MutationObserver to official Foundry API
+ *          Uses getProseMirrorMenuItems hook for proper button registration
+ *          Accesses real EditorView from menu.view (no more mock EditorView)
+ *          Eliminates button persistence issues by working with Foundry's lifecycle
  * 
  * Find and Replace Module for Foundry VTT
- * Entry point for the module. Handles editor detection via MutationObserver,
- * creates mock EditorView for Foundry v13's custom <prose-mirror> elements,
- * manages controller registry for button persistence across element replacements.
+ * Entry point for the module. Uses Foundry's official getProseMirrorMenuItems hook
+ * to register the Find & Replace button in ProseMirror editor toolbars. This ensures
+ * the button persists naturally as part of Foundry's menu system.
  * 
  * @module find-and-replace
  * @author paulcheeba (crusherDestroyer666)
  */
 
-import { ProseMirrorIntegration } from './prosemirror-integration.js';
 import { UIController } from './ui-controller.js';
 
 /* ========================================
@@ -25,16 +27,344 @@ import { UIController } from './ui-controller.js';
  */
 const MODULE_ID = 'find-and-replace';
 
+// Debug flags
+// - Turn DISCOVERY on only when actively hunting new Foundry internals.
+const DEBUG_DISCOVERY = false;
+const DEBUG_RENSURE = false;
+
+// Native patch state (no libWrapper)
+let NATIVE_MENU_PATCH_ACTIVE = false;
+const patchedMenuCtors = new WeakSet();
+
 /**
- * Track UIControllers by a stable ID to survive element replacements
- * Key: Stable form element ID (persists across prose-mirror element replacements)
- * Value: UIController instance (preserves UI state and button reference)
- * 
- * Why needed: Foundry v13 replaces the entire <prose-mirror> element when user
- * types or clicks, which removes our button. We use the parent form's ID as a
- * stable key to retrieve and reuse the same controller instance.
+ * Track UIControllers by a stable editor key.
+ *
+ * In Foundry v13, ProseMirror menus can be rebuilt frequently (including while typing),
+ * which can remove any custom DOM we injected into the toolbar. We key controllers by
+ * a stable ancestor form/application id so state survives menu rebuilds.
  */
 const controllerRegistry = new Map();
+
+/**
+ * Per-editor lifecycle state.
+ * Foundry can recreate the <prose-mirror> element and/or EditorView for the same document.
+ * We must refresh observers and event handlers whenever that happens.
+ */
+const toolbarObserverState = new Map();
+const pendingPurgeTimers = new Map();
+
+// One-time discovery logging guards
+const discoveredMenuClasses = new Set();
+const discoveredStacks = new Set();
+
+function logDiscoveryOnce(menu) {
+  if (!DEBUG_DISCOVERY || !menu) return;
+
+  const ctor = menu?.constructor;
+  const ctorName = ctor?.name || 'UnknownConstructor';
+  if (discoveredMenuClasses.has(ctorName)) return;
+  discoveredMenuClasses.add(ctorName);
+
+  try {
+    const proto = Object.getPrototypeOf(menu);
+    const descriptors = Object.getOwnPropertyDescriptors(proto);
+    const methodNames = Object.entries(descriptors)
+      .filter(([, d]) => typeof d.value === 'function')
+      .map(([k]) => k)
+      .sort();
+
+    const accessorNames = Object.entries(descriptors)
+      .filter(([, d]) => typeof d.get === 'function' || typeof d.set === 'function')
+      .map(([k]) => k)
+      .sort();
+
+    const candidates = methodNames.filter((n) => /render|_render|draw|build|attach|mount|update|refresh|rebuild|activate|on|_on/i.test(n));
+
+    console.groupCollapsed(`${MODULE_ID} | DISCOVERY | Menu class: ${ctorName}`);
+    console.log('Menu instance:', menu);
+    console.log('Menu keys:', Object.keys(menu));
+    console.log('Menu id:', menu.id);
+    console.log('Items length:', Array.isArray(menu.items) ? menu.items.length : menu.items);
+    console.log('Dropdowns length:', Array.isArray(menu.dropdowns) ? menu.dropdowns.length : menu.dropdowns);
+    console.log('Options:', menu.options);
+    console.log('Candidate methods:', candidates);
+    console.log('All methods:', methodNames);
+    console.log('Accessors (get/set):', accessorNames);
+
+    // Capture one stack trace to see what calls the hook (can help locate render path).
+    // Only do this once per class name.
+    if (!discoveredStacks.has(ctorName)) {
+      discoveredStacks.add(ctorName);
+      console.log('Hook call stack (first time for this menu class):');
+      console.trace();
+    }
+
+    console.groupEnd();
+  } catch (e) {
+    console.warn(`${MODULE_ID} | DISCOVERY | Failed introspection`, e);
+  }
+}
+
+function wrapMethodOnce(target, methodName, wrapFn) {
+  const original = target?.[methodName];
+  if (typeof original !== 'function') return false;
+  if (original.__findReplaceWrapped) return true;
+
+  const wrapped = function(...args) {
+    return wrapFn.call(this, original, args);
+  };
+
+  wrapped.__findReplaceWrapped = true;
+  wrapped.__findReplaceOriginal = original;
+  target[methodName] = wrapped;
+  return true;
+}
+
+function applyNativeMenuPatchFromCtor(MenuCtor) {
+  if (!MenuCtor?.prototype) return false;
+  if (patchedMenuCtors.has(MenuCtor)) return true;
+
+  const patchedRender = wrapMethodOnce(MenuCtor.prototype, 'render', function(original, args) {
+    const result = original.apply(this, args);
+    try {
+      if (this?.view) {
+        const editorKey = getStableEditorKey(this.view, this);
+        ensureToolbarButton({ editorKey, editorView: this.view });
+        setupToolbarObserver({ editorKey, editorView: this.view });
+      }
+    } catch (e) {
+      // ignore
+    }
+    return result;
+  });
+
+  const patchedUpdate = wrapMethodOnce(MenuCtor.prototype, 'update', function(original, args) {
+    const result = original.apply(this, args);
+    try {
+      if (this?.view) {
+        const editorKey = getStableEditorKey(this.view, this);
+        ensureToolbarButton({ editorKey, editorView: this.view });
+        setupToolbarObserver({ editorKey, editorView: this.view });
+      }
+    } catch (e) {
+      // ignore
+    }
+    return result;
+  });
+
+  if (patchedRender || patchedUpdate) {
+    patchedMenuCtors.add(MenuCtor);
+    NATIVE_MENU_PATCH_ACTIVE = true;
+    console.log(`${MODULE_ID} | Native ProseMirrorMenu patch active (render/update wrapped)`);
+    return true;
+  }
+
+  return false;
+}
+
+function getStableEditorKey(editorView, menu) {
+  try {
+    const dom = editorView?.dom;
+
+    const documentUuid = dom?.closest('prose-mirror')?.getAttribute('data-document-uuid');
+    if (documentUuid) return documentUuid;
+
+    const formId = dom?.closest('form')?.id;
+    if (formId) return formId;
+
+    const appId = dom?.closest('[id^="Journal"], [id^="Actor"], [id^="Item"], .app, .application')?.id;
+    if (appId) return appId;
+
+    const proseMirrorId = dom?.closest('prose-mirror')?.id;
+    if (proseMirrorId) return proseMirrorId;
+  } catch (e) {
+    // ignore
+  }
+
+  return menu?.id || `editor-${Date.now()}`;
+}
+
+function getProseMirrorRoot(editorView) {
+  try {
+    return editorView?.dom?.closest('prose-mirror') ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getToolbarElement(editorView) {
+  const proseMirror = getProseMirrorRoot(editorView);
+  if (!proseMirror) return null;
+  return proseMirror.querySelector('menu.editor-menu') || proseMirror.querySelector('menu');
+}
+
+function placeButtonLiAtEnd(toolbar, li) {
+  if (!toolbar || !li) return;
+
+  // Prefer placing just before the concurrent-users indicator if present.
+  const concurrentUsers = toolbar.querySelector('li.concurrent-users');
+  if (concurrentUsers && concurrentUsers.parentNode === toolbar) {
+    if (li.nextElementSibling !== concurrentUsers) {
+      toolbar.insertBefore(li, concurrentUsers);
+    }
+    return;
+  }
+
+  // Otherwise, place as the final <li>.
+  if (li.parentNode === toolbar && li !== toolbar.lastElementChild) {
+    toolbar.appendChild(li);
+  } else if (li.parentNode !== toolbar) {
+    toolbar.appendChild(li);
+  }
+}
+function ensureToolbarButton({ editorKey, editorView }) {
+  const toolbar = getToolbarElement(editorView);
+  if (!toolbar) return;
+
+  const t0 = DEBUG_RENSURE ? performance.now() : 0;
+
+  // Ensure the button exists in the toolbar DOM.
+  let li = toolbar.querySelector('li.find-replace-button');
+  if (!li) {
+    if (DEBUG_RENSURE) console.debug(`${MODULE_ID} | re-ensure | missing <li>, re-adding for ${editorKey}`);
+    li = document.createElement('li');
+    li.className = 'text find-replace-button';
+
+    // Place at the end to make any rebuild flicker less noticeable.
+    placeButtonLiAtEnd(toolbar, li);
+  }
+
+  let button = li.querySelector('button.find-replace-trigger');
+  if (!button) {
+    if (DEBUG_RENSURE) console.debug(`${MODULE_ID} | re-ensure | missing <button>, re-adding for ${editorKey}`);
+    button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('data-action', 'find-replace');
+    button.classList.add('find-replace-trigger');
+    button.innerHTML = '<i class="fa-solid fa-magnifying-glass fa-fw"></i>';
+    li.appendChild(button);
+  }
+
+  // Match Foundry tooltip patterns.
+  const tooltip = game.i18n.localize('find-and-replace.button.tooltip') || 'Find and Replace';
+  button.setAttribute('data-tooltip-text', tooltip);
+  button.title = tooltip;
+
+  // Always bind the click handler to the latest view+toolbar.
+  // Using onclick overwrites any stale handler from a previous EditorView instance.
+  button.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    let controller = controllerRegistry.get(editorKey);
+    if (!controller) {
+      controller = new UIController(editorView, toolbar);
+      controllerRegistry.set(editorKey, controller);
+      console.log(`${MODULE_ID} | Created new UIController for editor ${editorKey}`);
+    } else {
+      controller.updateContext(editorView, toolbar);
+    }
+
+    controller.toggleExpanded();
+  };
+
+  // If we already have a controller for this editor, re-bind it to the latest
+  // toolbar element and re-ensure the expanded UI (if open).
+  const existingController = controllerRegistry.get(editorKey);
+  if (existingController) {
+    existingController.updateContext(editorView, toolbar);
+    existingController.ensureExpandedUI();
+  }
+
+  if (DEBUG_RENSURE) {
+    const dt = performance.now() - t0;
+    console.debug(`${MODULE_ID} | re-ensure | complete in ${dt.toFixed(2)}ms for ${editorKey}`);
+  }
+}
+
+function setupToolbarObserver({ editorKey, editorView }) {
+  const purgeTimer = pendingPurgeTimers.get(editorKey);
+  if (purgeTimer) {
+    clearTimeout(purgeTimer);
+    pendingPurgeTimers.delete(editorKey);
+  }
+
+  const proseMirror = getProseMirrorRoot(editorView);
+  if (!proseMirror) return;
+
+  const existing = toolbarObserverState.get(editorKey);
+  if (existing?.proseMirror === proseMirror) {
+    // Refresh the latest EditorView reference for callbacks.
+    existing.editorView = editorView;
+    return;
+  }
+
+  // If this editorKey was previously observed, disconnect old observers.
+  if (existing) {
+    try { existing.observer?.disconnect(); } catch (e) { /* ignore */ }
+    try { existing.parentObserver?.disconnect(); } catch (e) { /* ignore */ }
+    if (existing.timer) clearTimeout(existing.timer);
+  }
+
+  const state = {
+    proseMirror,
+    editorView,
+    observer: null,
+    parentObserver: null,
+    timer: null
+  };
+
+  const scheduleEnsure = () => {
+    if (state.timer) return;
+    state.timer = Promise.resolve().then(() => {
+      state.timer = null;
+      // If the prose-mirror was removed (sheet closed), clean up.
+      if (!state.proseMirror?.isConnected) {
+        cleanupEditorKey(editorKey, { delayed: true });
+        return;
+      }
+      ensureToolbarButton({ editorKey, editorView: state.editorView });
+    });
+  };
+
+  state.observer = new MutationObserver(scheduleEnsure);
+  state.observer.observe(proseMirror, { childList: true, subtree: true });
+
+  // Also observe the parent for removal of the prose-mirror node (sheet close).
+  const parent = proseMirror.parentNode;
+  if (parent) {
+    state.parentObserver = new MutationObserver(() => {
+      if (!proseMirror.isConnected) cleanupEditorKey(editorKey, { delayed: true });
+    });
+    state.parentObserver.observe(parent, { childList: true });
+  }
+
+  toolbarObserverState.set(editorKey, state);
+}
+
+function cleanupEditorKey(editorKey, { delayed = false } = {}) {
+  const state = toolbarObserverState.get(editorKey);
+  if (state) {
+    try { state.observer?.disconnect(); } catch (e) { /* ignore */ }
+    try { state.parentObserver?.disconnect(); } catch (e) { /* ignore */ }
+    if (state.timer) clearTimeout(state.timer);
+  }
+  toolbarObserverState.delete(editorKey);
+
+  // If the editor is being temporarily re-rendered, keep controller state for a bit.
+  // Foundry can replace <prose-mirror> during focus/selection changes.
+  if (delayed) {
+    if (pendingPurgeTimers.has(editorKey)) return;
+    const timer = setTimeout(() => {
+      pendingPurgeTimers.delete(editorKey);
+      controllerRegistry.delete(editorKey);
+    }, 15000);
+    pendingPurgeTimers.set(editorKey, timer);
+    return;
+  }
+
+  controllerRegistry.delete(editorKey);
+}
 
 /* ========================================
  * FOUNDRY VTT HOOKS
@@ -56,390 +386,98 @@ Hooks.once('init', function() {
 Hooks.once('ready', function() {
   console.log(`${MODULE_ID} | Find and Replace module ready`);
   console.log(`${MODULE_ID} | Foundry VTT version: ${game.version}`);
-  console.log(`${MODULE_ID} | Setting up ProseMirror editor observer...`);
+  console.log(`${MODULE_ID} | Using getProseMirrorMenuItems hook for button registration`);
+});
+
+Hooks.on('getProseMirrorMenuItems', (menu, config) => {
+  logDiscoveryOnce(menu);
   
-  // Set up mutation observer to watch for prose-mirror elements
-  setupProseMirrorObserver();
+  // Verify we have access to the editor view
+  if (!menu.view) {
+    console.warn(`${MODULE_ID} | Menu does not have view property, skipping button injection`);
+    return;
+  }
+  
+  const editorView = menu.view;
+  const editorKey = getStableEditorKey(editorView, menu);
+
+  // Patch based on the runtime menu constructor (reliable in Foundry).
+  applyNativeMenuPatchFromCtor(menu?.constructor);
+
+  // If we've wrapped ProseMirrorMenu.render/update, we can inject synchronously
+  // during the same rebuild call stack (no flicker). Avoid the async ensure.
+  if (NATIVE_MENU_PATCH_ACTIVE) {
+    // Still keep controller context healthy if an editor is recreated.
+    setupToolbarObserver({ editorKey, editorView });
+    ensureToolbarButton({ editorKey, editorView });
+    return;
+  }
+
+  // Fallback: ensure in a microtask (before next paint) rather than setTimeout.
+  Promise.resolve().then(() => {
+    ensureToolbarButton({ editorKey, editorView });
+    setupToolbarObserver({ editorKey, editorView });
+  });
 });
 
 /* ========================================
- * EDITOR DETECTION - MUTATION OBSERVER
+ * OLD IMPLEMENTATION (v13.0.1.x) - ARCHIVED FOR REFERENCE
  * ======================================== */
 
 /**
- * Set up a MutationObserver to watch for prose-mirror custom elements
+ * WHAT WE USED TO DO (MutationObserver Approach):
  * 
- * Why MutationObserver instead of Hooks:
- * Foundry v13's custom <prose-mirror> elements don't trigger standard
- * renderApplication hooks reliably. MutationObserver watches the entire
- * document for new prose-mirror elements being added to the DOM.
+ * Previous versions (13.0.1.x) used a MutationObserver to watch the entire
+ * document for <prose-mirror> elements being added or modified. This worked
+ * but had significant issues:
  * 
- * Also handles button re-injection:
- * When Foundry replaces the prose-mirror element (on user interaction),
- * the mutation handler detects the button is missing and re-injects it
- * after a 150ms debounce delay to prevent infinite loops.
+ * PROBLEMS WITH THE OLD APPROACH:
+ * 1. Fought against Foundry's internal component lifecycle
+ * 2. Required constant re-injection with 150ms debounce delays
+ * 3. Created mock EditorView because real one wasn't accessible
+ * 4. Used form element IDs as stable keys (fragile)
+ * 5. Infinite loop potential if debounce timing was off
+ * 6. Button would disappear on every user interaction (typing, clicks)
+ * 7. Heavy mutation observer watching entire document body
+ * 
+ * WHY IT CAUSED BUTTON PERSISTENCE ISSUES:
+ * When users interacted with the editor (typing, formatting), Foundry v13's
+ * <prose-mirror> custom element would internally reconstruct its toolbar DOM.
+ * Our manually-injected button wasn't part of Foundry's official template,
+ * so it got removed. We had to constantly watch for this and re-inject.
+ * 
+ * THE PROPER SOLUTION (v13.0.1.2+):
+ * Use Foundry's official `getProseMirrorMenuItems` hook to register our
+ * button through the API. Foundry automatically includes it when building
+ * menus, so it persists naturally without any re-injection logic needed.
+ * 
+ * See the getProseMirrorMenuItems hook above for the new implementation.
  */
-function setupProseMirrorObserver() {
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      // HANDLER 1: Detect mutations ON prose-mirror elements (element replacement)
-      // When Foundry replaces the prose-mirror element, the mutation.target IS the prose-mirror
-      if (mutation.target && mutation.target.tagName === 'PROSE-MIRROR') {
-        // Check if our button was removed by the mutation
-        const menu = mutation.target.querySelector('menu.editor-menu');
-        const button = menu?.querySelector('.find-replace-button');
-        
-        if (!button && menu) {
-          // DEBOUNCE: Wait 150ms before re-injecting to prevent infinite loop
-          // Why: Button injection triggers a mutation, which would immediately
-          // trigger this handler again without the delay
-          setTimeout(() => {
-            // Double-check button is still missing after delay
-            const stillMissing = !menu.querySelector('.find-replace-button');
-            if (stillMissing) {
-              console.log(`${MODULE_ID} | Button confirmed missing after delay - re-injecting`);
-              // Reset processed marker to allow re-processing
-              mutation.target.dataset.findReplaceProcessed = 'false';
-              handleProseMirrorElement(mutation.target);
-            }
-          }, 150); // 150ms debounce
-        }
-      }
-      
-      // HANDLER 2: Detect NEW prose-mirror elements added to DOM
-      // Fires when journals, actor sheets, etc. are opened and editors are created
-      mutation.addedNodes.forEach((node) => {
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          // Direct prose-mirror element added
-          if (node.tagName === 'PROSE-MIRROR') {
-            console.log(`${MODULE_ID} | Detected new prose-mirror element being added`);
-            handleProseMirrorElement(node);
-          } else {
-            // Search for prose-mirror elements inside added containers
-            // (e.g., when a journal window is added with editors inside)
-            const proseMirrorElements = node.querySelectorAll?.('prose-mirror');
-            if (proseMirrorElements?.length > 0) {
-              console.log(`${MODULE_ID} | Found ${proseMirrorElements.length} prose-mirror element(s) in added content`);
-              proseMirrorElements.forEach(handleProseMirrorElement);
-            }
-          }
-        }
-      });
-    });
-  });
-  
-  // Start observing the document body for added nodes
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-  
-  console.log(`${MODULE_ID} | MutationObserver active, watching for prose-mirror elements`);
-  
-  // Also process any existing prose-mirror elements that are already in the DOM
-  const existingEditors = document.querySelectorAll('prose-mirror');
-  if (existingEditors.length > 0) {
-    console.log(`${MODULE_ID} | Processing ${existingEditors.length} existing prose-mirror element(s)`);
-    existingEditors.forEach(handleProseMirrorElement);
-  }
-}
 
 /* ========================================
- * PROSE-MIRROR ELEMENT HANDLER
+ * NO ADDITIONAL CODE NEEDED
  * ======================================== */
 
 /**
- * Handle a prose-mirror custom element
+ * In the old implementation (v13.0.1.x), this file contained:
+ * - setupProseMirrorObserver() function (150+ lines)
+ * - handleProseMirrorElement() function (200+ lines) 
+ * - getEditorViewFromElement() function (100+ lines)
+ * - Mock EditorView creation logic
+ * - Button re-injection logic with debounce
+ * - Form element ID tracking
  * 
- * This function is called for:
- * 1. Initial detection when editor opens
- * 2. Re-injection when element is replaced by Foundry
+ * All of that complexity is now replaced by the getProseMirrorMenuItems
+ * hook above (~50 lines), which uses Foundry's official API.
  * 
- * Creates mock EditorView if real one not accessible,
- * manages controller registry, and injects button.
- * 
- * @param {HTMLElement} proseMirrorElement - The prose-mirror custom element
+ * The new approach:
+ * - No MutationObserver needed
+ * - No mock EditorView needed (access real one via menu.view)
+ * - No button re-injection needed (Foundry handles it)
+ * - No debounce delays needed
+ * - No element replacement detection needed
+ * - Simpler, cleaner, more maintainable
  */
-function handleProseMirrorElement(proseMirrorElement) {
-  // Check if already processed using a unique marker
-  if (proseMirrorElement.dataset.findReplaceProcessed === 'true') {
-    return; // Already processed, skip
-  }
-  
-  // Mark as being processed immediately to prevent duplicate processing
-  proseMirrorElement.dataset.findReplaceProcessed = 'true';
-  
-  // Wait a bit for the element to be fully initialized
-  setTimeout(() => {
-      // Find the menu toolbar - it's a direct child of prose-mirror
-      const menu = proseMirrorElement.querySelector('menu.editor-menu');
-      if (!menu) {
-        console.warn(`${MODULE_ID} | Could not find menu in prose-mirror element`, proseMirrorElement);
-        proseMirrorElement.dataset.findReplaceProcessed = 'false'; // Allow retry
-        return;
-      }
-    
-    // === STABLE ID GENERATION ===
-    // Find parent form element (persists across prose-mirror replacements)
-    // Format: "JournalEntryPageProseMirrorSheet-JournalEntry-<id>-JournalEntryPage-<id>"
-    const formElement = proseMirrorElement.closest('form');
-    const stableId = formElement?.id || `prosemirror-${Date.now()}`;
-    
-    // === CONTROLLER REGISTRY CHECK ===
-    // Check if we've already processed this editor (by stable form ID)
-    const existingController = controllerRegistry.get(stableId);
-    const existingButton = menu.querySelector('.find-replace-button');
-    
-    console.log(`${MODULE_ID} | Checking state - Controller exists: ${!!existingController}, Button exists: ${!!existingButton}, Stable ID: ${stableId}`);
-    
-    // If both controller and button exist, nothing to do
-    if (existingButton && existingController) {
-      console.log(`${MODULE_ID} | Button and controller both exist, skipping`);
-      return;
-    }
-    
-    // Find the ProseMirror editor div
-    const editorContent = proseMirrorElement.querySelector('.editor-content.ProseMirror');
-    if (!editorContent) {
-      console.warn(`${MODULE_ID} | Could not find .editor-content.ProseMirror in prose-mirror element`, proseMirrorElement);
-      return;
-    }
-    
-    // === EDITORVIEW DETECTION ===
-    // Try to find real EditorView (usually not accessible in Foundry v13)
-    const editorView = getEditorViewFromElement(editorContent);
-    
-    if (!editorView) {
-      // === MOCK EDITORVIEW CREATION ===
-      // Foundry v13's custom element doesn't expose EditorView directly
-      // Create mock EditorView that mimics the ProseMirror EditorView API
-      if (editorContent.pmViewDesc && editorContent.pmViewDesc.node) {
-        const viewDesc = editorContent.pmViewDesc; // Contains ProseMirror document and schema
-        
-        // Mock EditorView structure that our find/replace logic expects
-        const mockEditorView = {
-          dom: editorContent,
-          state: {
-            doc: viewDesc.node,
-            selection: {
-              from: 0,
-              to: 0,
-              anchor: 0,
-              head: 0
-            },
-            // Add tr getter to create proper ProseMirror transactions
-            get tr() {
-              // Create a proper EditorState first, then get its transaction
-              if (!window.ProseMirror.state || !window.ProseMirror.state.EditorState) {
-                console.error('ProseMirror EditorState not available');
-                return null;
-              }
-              // Create a minimal EditorState with the current doc
-              const state = window.ProseMirror.state.EditorState.create({
-                doc: this.doc,
-                schema: this.doc.type.schema
-              });
-              return state.tr;
-            }
-          },
-          // Mock dispatch function - applies ProseMirror transactions to the editor
-          // This is called by our replace logic to update the editor content
-          dispatch: (tr) => {
-            console.log(`${MODULE_ID} | Mock dispatch called with transaction`, tr);
-            
-            // Only process transactions that actually modify content (have steps)
-            if (tr && tr.steps && tr.steps.length > 0) {
-              const newDoc = tr.doc; // Get modified document from transaction
-              if (newDoc) {
-                try {
-                  // === SERIALIZE PROSEMIRROR DOC TO HTML ===
-                  // ProseMirror stores content as a document tree, need to convert to HTML
-                  const serializer = window.ProseMirror.DOMSerializer.fromSchema(newDoc.type.schema);
-                  const fragment = serializer.serializeFragment(newDoc.content);
-                  
-                  // Create temporary container to hold serialized HTML
-                  const temp = document.createElement('div');
-                  temp.appendChild(fragment);
-                  
-                  // === UPDATE FOUNDRY'S INTERNAL STATE ===
-                  // Update the prose-mirror element's internal value
-                  proseMirrorElement._value = temp.innerHTML;
-                  
-                  // Update the visible DOM content
-                  editorContent.innerHTML = temp.innerHTML;
-                  
-                  // Update mock state to reflect changes
-                  mockEditorView.state.doc = newDoc;
-                  
-                  // === TRIGGER FOUNDRY CHANGE DETECTION ===
-                  // Fire 'input' event so Foundry knows content changed and enables Save button
-                  const event = new Event('input', { bubbles: true, cancelable: true });
-                  editorContent.dispatchEvent(event);
-                  
-                  console.log(`${MODULE_ID} | Updated editor content via mock dispatch`);
-                } catch (e) {
-                  console.error(`${MODULE_ID} | Error in mock dispatch:`, e);
-                }
-              }
-            }
-            
-            // For selection-only transactions, just update the selection
-            if (tr && tr.selectionSet) {
-              mockEditorView.state.selection = tr.selection;
-            }
-          },
-          _isMock: true,
-          _proseMirrorElement: proseMirrorElement,
-          _viewDesc: viewDesc
-        };
-        
-        // Store viewDesc reference for highlighting
-        mockEditorView._viewDesc = viewDesc;
-        
-
-        
-        // === CONTROLLER REGISTRY: CREATE OR REUSE ===
-        let uiController = controllerRegistry.get(stableId);
-        
-        if (!uiController) {
-          // === FIRST TIME: CREATE NEW CONTROLLER ===
-          // This editor hasn't been seen before, create fresh controller
-          try {
-            uiController = new UIController(mockEditorView, menu);
-            uiController.injectButton();
-            // Store in registry so we can reuse it if element gets replaced
-            controllerRegistry.set(stableId, uiController);
-            console.log(`${MODULE_ID} | SUCCESS! New UIController created and button injected (ID: ${stableId})`);
-          } catch (error) {
-            console.error(`${MODULE_ID} | Failed to inject button:`, error);
-            proseMirrorElement.dataset.findReplaceProcessed = 'false'; // Allow retry on error
-          }
-        } else {
-          // === ELEMENT REPLACED: REUSE EXISTING CONTROLLER ===
-          // Foundry replaced the prose-mirror element, but we have the controller saved
-          // Update controller's view reference and re-inject button
-          console.log(`${MODULE_ID} | Reusing existing UIController (ID: ${stableId}), updating view`);
-          
-          // Update view references (new mock EditorView for new element)
-          uiController.view = mockEditorView;
-          uiController.logic.view = mockEditorView;
-          uiController.toolbarElement = menu;
-          
-          // Re-inject button if it's missing (it was on the old element that got replaced)
-          if (!menu.querySelector('.find-replace-button')) {
-            console.log(`${MODULE_ID} | Button missing, re-injecting`);
-            const wasExpanded = uiController.isExpanded; // Preserve UI state
-            uiController.injectButton();
-            
-            // Restore active state (orange glow) if UI was expanded before replacement
-            if (wasExpanded && uiController.button) {
-              uiController.button.classList.add('active');
-            }
-          } else {
-            console.log(`${MODULE_ID} | Button still present, no re-injection needed`);
-          }
-        }
-      }
-      
-      return;
-    }
-    
-    console.log(`${MODULE_ID} | Successfully found EditorView, injecting find/replace button`);
-    
-    // Create UI controller and inject button
-    const uiController = new UIController(editorView, menu);
-    uiController.injectButton();
-  }, 100); // Give the custom element time to initialize
-}
-
-/* ========================================
- * EDITORVIEW FINDER (FALLBACK)
- * ======================================== */
-
-/**
- * Attempt to find the real ProseMirror EditorView instance from a DOM element
- * 
- * This tries multiple property names where Foundry might store the EditorView.
- * In practice, this usually returns null for Foundry v13's custom elements,
- * and we fall back to creating a mock EditorView instead.
- * 
- * @param {HTMLElement} element - The ProseMirror editor element
- * @returns {EditorView|null} The EditorView instance or null
- */
-function getEditorViewFromElement(element) {
-  // Try the prose-mirror parent element first
-  const proseMirrorElement = element.closest('prose-mirror');
-  
-  if (proseMirrorElement) {
-    // In Foundry v13, the _primaryInput contains the actual ProseMirror editor DOM
-    // and that's where the pmViewDesc lives, which we can use to access the view
-    if (proseMirrorElement._primaryInput?.pmViewDesc) {
-      const viewDesc = proseMirrorElement._primaryInput.pmViewDesc;
-      // Try to find the EditorView by traversing up the ViewDesc chain
-      let current = viewDesc;
-      while (current) {
-        if (current.view) {
-          console.log(`${MODULE_ID} | Found EditorView via _primaryInput.pmViewDesc chain`);
-          return current.view;
-        }
-        current = current.parent;
-      }
-    }
-    
-    // Try common private property names where Foundry might store the view
-    const possibleProps = ['_view', '_editorView', '_prosemirror', 'editorView', '__view'];
-    for (const prop of possibleProps) {
-      if (proseMirrorElement[prop]) {
-        console.log(`${MODULE_ID} | Found EditorView via proseMirrorElement.${prop}`);
-        return proseMirrorElement[prop];
-      }
-    }
-  }
-  
-  // The EditorView might be stored in the pmViewDesc's parent or a sibling property
-  if (element.pmViewDesc) {
-    const viewDesc = element.pmViewDesc;
-    
-    // Try to traverse up the ViewDesc tree to find the root EditorView
-    let current = viewDesc;
-    while (current) {
-      if (current.view) {
-        console.log(`${MODULE_ID} | Found EditorView via ViewDesc chain`);
-        return current.view;
-      }
-      current = current.parent;
-    }
-    
-    // The ViewDesc.dom is the actual DOM element, and ProseMirror stores
-    // a back-reference on the DOM element itself
-    if (viewDesc.dom) {
-      // Check for ProseMirror's internal property on the DOM
-      const domKeys = Object.keys(viewDesc.dom);
-      console.log(`${MODULE_ID} | Checking ViewDesc.dom for hidden properties:`, domKeys);
-      
-      // Look for any property that might be the EditorView
-      for (const key of domKeys) {
-        const value = viewDesc.dom[key];
-        if (value && typeof value === 'object' && value.state && value.dispatch) {
-          console.log(`${MODULE_ID} | Found EditorView-like object via viewDesc.dom.${key}`);
-          return value;
-        }
-      }
-    }
-  }
-  
-  // Check common property names on the element itself
-  if (element.pmView) {
-    console.log(`${MODULE_ID} | Found EditorView via element.pmView`);
-    return element.pmView;
-  }
-  if (element.view) {
-    console.log(`${MODULE_ID} | Found EditorView via element.view`);
-    return element.view;
-  }
-  
-  return null;
-}
 
 /* ========================================
  * MODULE EXPORTS
@@ -450,5 +488,5 @@ function getEditorViewFromElement(element) {
 window.FindAndReplace = {
   MODULE_ID,
   controllerRegistry, // For debugging: see all active controllers
-  // TODO: Export additional API methods if needed
+  version: '13.1.0.0'
 };

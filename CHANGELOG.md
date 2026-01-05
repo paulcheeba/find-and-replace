@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to Semantic Versioning adapted for Foundry VTT modules:
 `v{foundry version}.{major version}.{subversion}.{test subversion}`
 
+## [13.1.1.0] - 2026-01-04
+
+### Added
+- OEV Suite Monitor as required dependency for centralized module management
+
+### Changed
+- Module now integrates with OverEngineeredVTT ecosystem through OEV Suite Monitor
+
 ## [13.1.0.0] - 2026-01-02
 
 ### Fixed

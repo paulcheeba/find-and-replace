@@ -29,5 +29,4 @@ _gitignore/
 
 # Local GitHub dev scratch / prompts
 /.github/devFolder/
-/.github/prompt/
 /.github/prompts/

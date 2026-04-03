@@ -63,11 +63,11 @@ export class UIController {
    */
   ensureExpandedUI() {
     if (!this.isExpanded || !this.expandedUI?.container) return;
-    if (!this.expandedUI.container.isConnected && this.toolbarElement?.parentNode) {
-      this.toolbarElement.parentNode.insertBefore(
-        this.expandedUI.container,
-        this.toolbarElement.nextSibling
-      );
+    if (!this.expandedUI.container.isConnected) {
+      const pm = this.toolbarElement.closest('prose-mirror');
+      let anchor = this.toolbarElement;
+      if (pm) while (anchor.parentElement !== pm) anchor = anchor.parentElement;
+      anchor.parentNode.insertBefore(this.expandedUI.container, anchor.nextSibling);
     }
   }
   
@@ -241,8 +241,12 @@ export class UIController {
     container.appendChild(findRow);
     container.appendChild(replaceRow);
     
-    // Insert after the toolbar
-    this.toolbarElement.parentNode.insertBefore(container, this.toolbarElement.nextSibling);
+    // Walk up to the direct child of <prose-mirror> so the container isn't
+    // clipped by overflow:hidden on any intermediate wrapper (v14 compat).
+    const pm = this.toolbarElement.closest('prose-mirror');
+    let anchor = this.toolbarElement;
+    if (pm) while (anchor.parentElement !== pm) anchor = anchor.parentElement;
+    anchor.parentNode.insertBefore(container, anchor.nextSibling);
     
     this.expandedUI = {
       container,

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to Semantic Versioning adapted for Foundry VTT modules:
 `v{foundry version}.{major version}.{subversion}.{test subversion}`
 
+## [14.0.0.0] - 2026-04-03
+
+### Changed
+- Version bumped to 14.0.0.0 — first official Foundry v14 release
+- Verified compatible with Foundry v14; `module.json` compatibility updated accordingly
+- README: updated compatibility note to "Verified v13 and v14"
+
 ## [13.1.1.0] - 2026-04-03
 
 ### Added

@@ -1,18 +1,19 @@
 {
   "id": "find-and-replace",
   "title": "Find and Replace",
-  "description": "Adds find and replace functionality to ProseMirror editors in Foundry VTT",
+  "description": "<p>Adds find and replace functionality to ProseMirror editors in Foundry VTT</p>",
   "version": "13.1.1.0",
   "authors": [
     {
       "name": "paulcheeba",
-      "discord": "crusherDestroyer666"
+      "discord": "crusherDestroyer666",
+      "flags": {}
     }
   ],
   "compatibility": {
     "minimum": "13",
     "verified": "13",
-    "maximum": "13.999"
+    "maximum": "14"
   },
   "relationships": {
     "requires": [
@@ -28,19 +29,22 @@
     "scripts/main.js"
   ],
   "styles": [
-    "styles/find-replace.css"
+    {
+      "src": "styles/find-replace.css"
+    }
   ],
   "languages": [
     {
       "lang": "en",
       "name": "English",
-      "path": "languages/en.json"
+      "path": "languages/en.json",
+      "flags": {}
     }
   ],
   "license": "LICENSE",
   "readme": "README.md",
   "changelog": "CHANGELOG.md",
-  "url": "",
   "manifest": "https://github.com/paulcheeba/find-and-replace/releases/latest/download/module.json",
-  "download": "https://github.com/paulcheeba/find-and-replace/releases/latest/download/find-and-replace.zip"
+  "download": "https://github.com/paulcheeba/find-and-replace/releases/latest/download/find-and-replace.zip",
+  "flags": {}
 }

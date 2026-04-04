@@ -51,7 +51,7 @@ https://github.com/paulcheeba/find-and-replace/releases/latest/download/module.j
 
 ## Compatibility
 
-- **Foundry VTT Version**: v13 and above
+- **Foundry VTT Version**: Verified v13 and v14
 - **System Compatibility**: Universal (works with all game systems)
 
 ## License

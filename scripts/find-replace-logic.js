@@ -249,59 +249,86 @@ export class FindReplaceLogic {
    * @private
    */
   highlightMatches() {
-    // If using a mock EditorView, use native browser selection
-    if (this.view._isMock) {
+    // Always use native DOM selection so the highlight is visible regardless of
+    // whether the editor has focus (it typically doesn't — the find input does).
+    // view.domAtPos() is the real EditorView equivalent of the mock's _viewDesc.domFromPos().
+    this._applyHighlightDecorations();
+  }
+  
+  _applyHighlightDecorations() {
+    // Use the CSS Custom Highlight API — available in all modern Chromium builds
+    // (Electron included). Applies visual overlays without touching the DOM or
+    // ProseMirror state, so nothing fights us for control.
+    if (typeof CSS === 'undefined' || !CSS.highlights) {
+      // Fallback to old native selection path for environments without support.
       this._highlightWithNativeSelection();
       return;
     }
-    
-    // For real EditorView, use ProseMirror selection
-    if (this.currentMatchIndex >= 0 && this.currentMatchIndex < this.currentMatches.length) {
-      const match = this.currentMatches[this.currentMatchIndex];
-      const tr = this.view.state.tr;
-      
-      // Set selection to the current match
-      tr.setSelection(
-        this.view.state.selection.constructor.create(
-          this.view.state.doc,
-          match.from,
-          match.to
-        )
-      );
-      
-      this.view.dispatch(tr);
+
+    const domFromPos = (pos) => {
+      if (typeof this.view.domAtPos === 'function') return this.view.domAtPos(pos);
+      return this.view._viewDesc?.domFromPos(pos);
+    };
+
+    const allRanges = [];
+    let currentRange = null;
+
+    for (let i = 0; i < this.currentMatches.length; i++) {
+      const match = this.currentMatches[i];
+      try {
+        const startPos = domFromPos(match.from);
+        const endPos = domFromPos(match.to);
+        if (!startPos || !endPos) continue;
+
+        const r = new StaticRange({
+          startContainer: startPos.node,
+          startOffset: startPos.offset,
+          endContainer: endPos.node,
+          endOffset: endPos.offset
+        });
+
+        if (i === this.currentMatchIndex) {
+          currentRange = r;
+        } else {
+          allRanges.push(r);
+        }
+      } catch (e) {
+        // ignore individual failures
+      }
+    }
+
+    // Pale yellow for all non-current matches
+    CSS.highlights.set('find-replace-all', new Highlight(...allRanges));
+    // Light green for the current match
+    if (currentRange) {
+      CSS.highlights.set('find-replace-current', new Highlight(currentRange));
+    } else {
+      CSS.highlights.delete('find-replace-current');
     }
   }
-  
+
   /**
-   * Highlight using native browser Selection API (for mock EditorView)
-   * 
-   * Why this approach:
-   * Foundry v13's custom element doesn't support ProseMirror decorations,
-   * so we use the browser's native Selection API to highlight matches.
-   * 
-   * Process:
-   * 1. Convert ProseMirror positions to DOM positions using domFromPos()
-   * 2. Create a Range from DOM positions
-   * 3. Apply Range to window.getSelection()
-   * 4. Browser automatically highlights selected text
-   * 
+   * Highlight using native browser Selection API (fallback)
+   * Used when CSS Custom Highlight API is not available.
    * @private
    */
   _highlightWithNativeSelection() {
     if (this.currentMatchIndex < 0 || this.currentMatchIndex >= this.currentMatches.length) return;
     
     const match = this.currentMatches[this.currentMatchIndex]; // {from, to} in PM positions
-    const editorDOM = this.view.dom;
-    const viewDesc = this.view._viewDesc; // Contains domFromPos() method
     
     try {
       // === CONVERT PM POSITIONS TO DOM POSITIONS ===
-      // ProseMirror positions are abstract (position in document tree)
-      // DOM positions are concrete (node + offset in that node)
-      // domFromPos() returns {node: DOMNode, offset: number}
-      const startPos = viewDesc.domFromPos(match.from);
-      const endPos = viewDesc.domFromPos(match.to);
+      // Real EditorView exposes view.domAtPos(pos) -> {node, offset}.
+      // Mock EditorView used view._viewDesc.domFromPos(pos) -> {node, offset}.
+      // Both return the same shape; prefer the real API.
+      const domFromPos = (pos) => {
+        if (typeof this.view.domAtPos === 'function') return this.view.domAtPos(pos);
+        return this.view._viewDesc?.domFromPos(pos);
+      };
+      
+      const startPos = domFromPos(match.from);
+      const endPos = domFromPos(match.to);
       
       if (startPos && endPos) {
         // === CREATE RANGE ===
@@ -342,30 +369,24 @@ export class FindReplaceLogic {
    */
   scrollToMatch(index) {
     if (index < 0 || index >= this.currentMatches.length) return;
-    
-    // If using mock, just use the current selection scroll
-    if (this.view._isMock) {
-      // The native selection highlight will handle scrolling
-      const selection = window.getSelection();
-      if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        if (rect) {
-          // Scroll into view if needed
-          if (rect.top < 0 || rect.bottom > window.innerHeight) {
-            range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }
+
+    const domFromPos = (pos) => {
+      if (typeof this.view.domAtPos === 'function') return this.view.domAtPos(pos);
+      return this.view._viewDesc?.domFromPos(pos);
+    };
+
+    try {
+      const match = this.currentMatches[index];
+      const startPos = domFromPos(match.from);
+      if (startPos?.node) {
+        const el = startPos.node.nodeType === Node.TEXT_NODE
+          ? startPos.node.parentElement
+          : startPos.node;
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-      return;
+    } catch (e) {
+      // ignore
     }
-    
-    const match = this.currentMatches[index];
-    
-    // Scroll the match into view
-    const tr = this.view.state.tr;
-    tr.scrollIntoView();
-    this.view.dispatch(tr);
   }
   
   /**
@@ -376,7 +397,13 @@ export class FindReplaceLogic {
     this.currentMatchIndex = -1;
     this.searchTerm = '';
     
-    // Clear native selection to remove highlighting
+    // Clear CSS Custom Highlight decorations
+    if (typeof CSS !== 'undefined' && CSS.highlights) {
+      CSS.highlights.delete('find-replace-all');
+      CSS.highlights.delete('find-replace-current');
+    }
+
+    // Also clear native selection as fallback cleanup
     const selection = window.getSelection();
     if (selection) {
       selection.removeAllRanges();

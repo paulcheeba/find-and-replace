@@ -40,7 +40,35 @@ export class UIController {
     this.isExpanded = false;                   // Is the expanded UI showing?
     this.toolbarElement = toolbar;             // Toolbar element to inject button into
     this.expandedUI = null;                    // Reference to expanded UI container
-    this.button = null;                        // Reference to main toolbar button
+    // main.js creates the button DOM directly; find it from the toolbar.
+    this.button = toolbar?.querySelector('button.find-replace-trigger') ?? null;
+  }
+
+  /**
+   * Update internal references after a toolbar/EditorView rebuild.
+   * Called by main.js whenever the menu is re-rendered.
+   * @param {EditorView} editorView
+   * @param {HTMLElement} toolbar
+   */
+  updateContext(editorView, toolbar) {
+    this.view = editorView;
+    this.toolbarElement = toolbar;
+    this.button = toolbar?.querySelector('button.find-replace-trigger') ?? null;
+    if (this.logic) this.logic.view = editorView;
+  }
+
+  /**
+   * Re-attach the expanded UI container if it has been detached by a toolbar rebuild.
+   * Called by main.js after ensureToolbarButton.
+   */
+  ensureExpandedUI() {
+    if (!this.isExpanded || !this.expandedUI?.container) return;
+    if (!this.expandedUI.container.isConnected) {
+      const pm = this.toolbarElement.closest('prose-mirror');
+      let anchor = this.toolbarElement;
+      if (pm) while (anchor.parentElement !== pm) anchor = anchor.parentElement;
+      anchor.parentNode.insertBefore(this.expandedUI.container, anchor.nextSibling);
+    }
   }
   
   /* ========================================
@@ -123,7 +151,7 @@ export class UIController {
     console.log('UIController | Expanding find and replace UI');
     
     this.isExpanded = true;
-    this.button.classList.add('active');
+    if (this.button) this.button.classList.add('active');
     
     // Create container for expanded UI
     const container = document.createElement('div');
@@ -213,8 +241,12 @@ export class UIController {
     container.appendChild(findRow);
     container.appendChild(replaceRow);
     
-    // Insert after the toolbar
-    this.toolbarElement.parentNode.insertBefore(container, this.toolbarElement.nextSibling);
+    // Walk up to the direct child of <prose-mirror> so the container isn't
+    // clipped by overflow:hidden on any intermediate wrapper (v14 compat).
+    const pm = this.toolbarElement.closest('prose-mirror');
+    let anchor = this.toolbarElement;
+    if (pm) while (anchor.parentElement !== pm) anchor = anchor.parentElement;
+    anchor.parentNode.insertBefore(container, anchor.nextSibling);
     
     this.expandedUI = {
       container,
@@ -250,7 +282,7 @@ export class UIController {
     if (!this.isExpanded) return;
     
     this.isExpanded = false;
-    this.button.classList.remove('active');
+    if (this.button) this.button.classList.remove('active');
     
     // Remove expanded UI elements
     if (this.expandedUI && this.expandedUI.container) {

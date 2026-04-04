@@ -6,13 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to Semantic Versioning adapted for Foundry VTT modules:
 `v{foundry version}.{major version}.{subversion}.{test subversion}`
 
-## [13.1.1.0] - 2026-01-04
+## [14.0.0.0] - 2026-04-03
+
+### Changed
+- Version bumped to 14.0.0.0 — first official Foundry v14 release
+- Verified compatible with Foundry v14; `module.json` compatibility updated accordingly
+- README: updated compatibility note to "Verified v13 and v14"
+
+## [13.1.1.0] - 2026-04-03
 
 ### Added
 - OEV Suite Monitor as required dependency for centralized module management
+- CSS Custom Highlight API highlighting: all matches shown in pale yellow, current match in light green (falls back to native browser selection on unsupported environments)
+
+### Fixed
+- `UIController` crash on button click: `this.button` was always `null` because `ui-controller.js` was never updated when `main.js` was refactored in 13.1.0.0
+- Added missing `updateContext(editorView, toolbar)` method to `UIController` — called by `main.js` on every toolbar rebuild to refresh internal references
+- Added missing `ensureExpandedUI()` method to `UIController` — re-attaches the find/replace panel if orphaned by a toolbar rebuild
+- Match highlighting not working: the real `EditorView` path dispatched a ProseMirror selection transaction which only renders when the editor has focus (it doesn't, the find input does); replaced with CSS Custom Highlight API
 
 ### Changed
 - Module now integrates with OverEngineeredVTT ecosystem through OEV Suite Monitor
+- Compatibility: verified against Foundry v14, maximum bumped to 14
 
 ## [13.1.0.0] - 2026-01-02
 
